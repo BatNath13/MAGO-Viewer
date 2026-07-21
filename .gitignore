@@ -18,3 +18,6 @@ logs/
 *.bak_*
 _backup_*/
 SAUVEGARDE_*/
+
+.client_public_url
+DOUBLONS_A_VERIFIER.csv
