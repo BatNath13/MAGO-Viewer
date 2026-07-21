@@ -4,6 +4,7 @@
  * Point d'entrée. Bootstrap la scène Babylon et branche toute l'UI.
  */
 
+import { initI18n } from "./i18n";
 import {
   Color3,
   Color4,
@@ -74,6 +75,8 @@ import {
   type SplatFilterSettings,
   type SplatPlyData,
 } from './scene/splatPlyEditor';
+
+initI18n();
 
 // =================================================================
 //  ÉTAT GLOBAL DE L'APP
