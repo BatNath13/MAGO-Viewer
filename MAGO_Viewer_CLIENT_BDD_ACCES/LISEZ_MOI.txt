@@ -1,0 +1,14 @@
+MAGO VIEWER — LANCEMENT
+
+Double-cliquez uniquement sur : MAGO Viewer.exe
+
+L'exécutable démarre automatiquement :
+- PostgreSQL portable dans D:\PGSQL
+- l'API d'enrichissement
+- le viewer
+- le navigateur sur http://localhost:5173
+
+Le fichier EXE doit rester dans ce dossier, à côté de package.json.
+Les journaux sont écrits dans le dossier logs.
+
+Au tout premier lancement, si aucun fichier .env n'est disponible, il sera ouvert dans le Bloc-notes afin de saisir le mot de passe PostgreSQL. Les lancements suivants sont automatiques.

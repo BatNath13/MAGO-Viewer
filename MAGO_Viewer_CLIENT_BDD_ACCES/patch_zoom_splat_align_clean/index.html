@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MAGO Viewer · TFE</title>
+<link href="/MAGO_viewer_icon.ico" rel="icon" type="image/x-icon"/>
+<link href="/src/styles/global.css" rel="stylesheet"/>
+<link href="/src/styles/client-mode.css" rel="stylesheet"/>
+<script>
+  // Détermine le mode client AVANT le chargement des modules, pour que
+  // l'API soit appelée sur la même origine (page servie par l'API en mode client).
+  (function () {
+    try {
+      var p = new URLSearchParams(location.search);
+      if (window.__MAGO_CLIENT__ === true || p.get('client') === '1' || p.get('mode') === 'client') {
+        window.__MAGO_CLIENT__ = true;
+        window.MAGO_API_BASE = location.origin;
+      }
+    } catch (e) { /* no-op */ }
+  })();
+</script>
+</head>
+<body class="sidebar-open">
+<div id="app">
+<header id="toolbar">
+<div class="brand-wrap">
+<button class="btn-hamburger" id="btn-sidebar-toggle" title="Afficher / masquer le panneau">
+<span></span><span></span><span></span>
+</button>
+<div class="brand">
+<img class="brand-logo" src="/MAGO_viewer_icon.ico" alt="MAGO Viewer logo"/>
+<span class="brand-text">MAGO Viewer</span>
+<span class="brand-sub">TFE · Nathan BATAILLARD</span>
+</div>
+</div>
+<div class="toolbar-actions">
+<div class="top-tools">
+<button class="btn-tool" id="btn-tools-menu" title="Outils avancés">Outils ▾</button>
+<div class="tools-dropdown tools-dropdown-light" id="tools-dropdown"><details class="tool-section"><summary>Mesure</summary><div class="tool-section-body">
+
+<div class="control-row measure-mode-row">
+<label>Mode de mesure</label>
+<select id="measure-mode">
+<option value="distance">Distance — 2 points</option>
+<option value="area">Surface — contour</option>
+</select>
+</div>
+
+<p class="panel-hint">Distance : clique 2 points. Surface : clique les sommets du contour, puis ferme la surface.</p>
+<button class="btn-action" id="btn-measure">
+<span class="dot-pulse"></span>
+<span class="btn-label">Activer (touche M)</span>
+</button>
+<div class="measure-result" id="measure-result">
+<div class="measure-row">
+<span>Distance</span>
+<strong id="measure-dist">—</strong>
+</div>
+<div class="measure-row">
+<span>ΔX</span><strong id="measure-dx">—</strong>
+</div>
+<div class="measure-row">
+<span>ΔY</span><strong id="measure-dy">—</strong>
+</div>
+<div class="measure-row">
+<span>ΔZ</span><strong id="measure-dz">—</strong>
+</div>
+
+<div class="measure-row"><span>Surface</span><strong id="measure-area">—</strong></div>
+<div class="measure-row"><span>Points</span><strong id="measure-points">—</strong></div>
+</div>
+<div class="measure-actions"><button class="btn-secondary" id="btn-measure-undo-point">Annuler dernier point</button><button class="btn-secondary" id="btn-measure-finish-area">Fermer surface</button><button class="btn-secondary" id="btn-measure-clear">Effacer</button></div>
+</div></details><details class="tool-section" data-client-hide><summary>Alignement par points</summary><div class="tool-section-body">
+<p class="panel-hint">Style CloudCompare : clique des paires Source → Cible, calcule une matrice 4x4, puis exporte-la pour MAGO pipeline.</p>
+<div class="control-row compact-select">
+<label>Source à transformer</label>
+<select id="align-source-kind">
+<option value="splat" selected>Splats</option>
+<option value="mesh">Mesh sélectionné / principal</option>
+<option value="pointcloud">Nuage sélectionné / premier visible</option>
+</select>
+</div>
+<div class="control-row compact-select">
+<label>Cible de référence</label>
+<select id="align-target-kind">
+<option value="mesh" selected>Mesh sélectionné / principal</option>
+<option value="pointcloud">Nuage sélectionné / premier visible</option>
+<option value="splat">Splats</option>
+</select>
+</div>
+<label class="check-row small-check"><input id="align-apply-source" type="checkbox" checked/> Appliquer la matrice à la source dans le viewer</label>
+<div class="control-row compact-select">
+<label>Repère matrice importée</label>
+<select id="align-matrix-space">
+<option value="mago" selected>MAGO / CloudCompare Z-up</option>
+<option value="viewer">Viewer actuel</option>
+</select>
+</div>
+<div class="control-row compact-select">
+<label>Échelle de la source</label>
+<select id="align-scale-mode">
+<option value="keep" selected>Garder l'échelle (rigide)</option>
+<option value="estimate">Estimer automatiquement (similarité)</option>
+<option value="manual">Facteur manuel…</option>
+</select>
+</div>
+<div class="control-row compact-select" id="align-scale-manual-row" style="display:none;">
+<label>Facteur d'échelle</label>
+<input id="align-scale-manual" type="number" step="0.0001" value="1" style="width:100%;" />
+</div>
+<div class="align-vis-toggles">
+<label class="check-row small-check"><input id="align-hide-source" type="checkbox"/> Masquer la source pendant le piquage</label>
+<label class="check-row small-check"><input id="align-hide-target" type="checkbox"/> Masquer la référence pendant le piquage</label>
+</div>
+<div class="align-status-card">
+<div><span>État</span><strong id="align-status">Inactif</strong></div>
+<div><span>Paires</span><strong id="align-pair-count">0 paire</strong></div>
+<div><span>Erreur RMS</span><strong id="align-rmse">—</strong></div>
+<div><span>Erreur max</span><strong id="align-max-error">—</strong></div>
+</div>
+<div class="mini-actions stacked">
+<button class="btn-mini wide" id="btn-align-toggle">Activer picking</button>
+<button class="btn-mini wide" id="btn-align-undo">Annuler dernier point</button>
+<button class="btn-mini wide" id="btn-align-clear">Effacer points</button>
+<button class="btn-mini wide" id="btn-align-solve">Calculer / appliquer matrice</button>
+<button class="btn-mini wide" id="btn-align-import-matrix">Importer matrice .txt</button>
+<input accept=".txt,.matrix,.csv" hidden id="file-align-matrix" type="file"/>
+<button class="btn-mini wide" id="btn-align-copy-matrix">Copier matrice CloudCompare</button>
+<button class="btn-mini wide" id="btn-align-export-matrix">Exporter matrice CloudCompare</button>
+</div>
+<textarea id="align-matrix-preview" class="matrix-preview" readonly placeholder="La matrice 4x4 apparaîtra ici après calcul."></textarea>
+<p class="panel-hint small-hint">Minimum conseillé : 3 paires non alignées. La matrice affichée/exportée est en repère MAGO / CloudCompare / 3DR Z-up. Elle est convertie depuis le repère interne du viewer.</p>
+</div></details><details class="tool-section" data-client-hide><summary>Transformations</summary><div class="tool-section-body">
+
+<p class="panel-hint">Z-up → Y-up est appliqué par défaut au chargement. Tu peux toujours modifier ou reset chaque calque ici.</p>
+<div class="manipulator-card">
+<div class="transform-title">Manipulation interactive</div>
+<p class="panel-hint small-hint">Sélectionne le mesh ou les splats, puis active Déplacer ou Rotation. Le gizmo apparaît dans la scène.</p>
+<div class="mini-actions">
+<button class="btn-mini" data-manip-select="mesh">Sélectionner mesh</button>
+<button class="btn-mini" data-manip-select="splat">Sélectionner splats</button>
+</div>
+<div class="mini-actions manip-mode-row">
+<button class="btn-mini" data-manip-mode="move">Déplacer</button>
+<button class="btn-mini" data-manip-mode="rotate">Rotation</button>
+<button class="btn-mini" data-manip-mode="scale">Échelle</button>
+<button class="btn-mini danger-soft" data-manip-mode="none">Désactiver</button>
+</div>
+<div class="manipulator-status" id="manipulator-status">Aucun objet manipulé</div>
+</div>
+<div class="transform-card" data-layer="selected-object">
+<div class="transform-title"><span class="loader-dot"></span> Objet sélectionné</div>
+<p class="panel-hint small-hint" id="selected-transform-name">Sélectionne un objet dans « Objets importés » pour modifier uniquement celui-ci.</p>
+<div class="mini-actions">
+<button class="btn-mini" data-sel-transform-preset="zup-yup">Z-up → Y-up</button>
+<button class="btn-mini" data-sel-transform-preset="reset">Reset</button>
+</div>
+<div class="transform-grid">
+<label>X<input data-sel-field="px" step="0.01" type="number" value="0"/></label>
+<label>Y<input data-sel-field="py" step="0.01" type="number" value="0"/></label>
+<label>Z<input data-sel-field="pz" step="0.01" type="number" value="0"/></label>
+</div>
+<div class="transform-grid">
+<label>Rot X<input data-sel-field="rx" step="1" type="number" value="0"/></label>
+<label>Rot Y<input data-sel-field="ry" step="1" type="number" value="0"/></label>
+<label>Rot Z<input data-sel-field="rz" step="1" type="number" value="0"/></label>
+</div>
+<div class="transform-grid one">
+<label>Échelle<input data-sel-field="scale" min="0.0001" step="0.01" type="number" value="1"/></label>
+</div>
+</div>
+<div class="transform-card" data-layer="mesh">
+<div class="transform-title"><span class="loader-dot mesh"></span> Mesh</div>
+<div class="mini-actions">
+<button class="btn-mini" data-kind="mesh" data-transform-preset="zup-yup">Z-up → Y-up</button>
+<button class="btn-mini" data-kind="mesh" data-transform-preset="reset">Reset</button>
+</div>
+<div class="transform-grid">
+<label>X<input data-field="px" data-transform="mesh" step="0.01" type="number" value="0"/></label>
+<label>Y<input data-field="py" data-transform="mesh" step="0.01" type="number" value="0"/></label>
+<label>Z<input data-field="pz" data-transform="mesh" step="0.01" type="number" value="0"/></label>
+</div>
+<div class="transform-grid">
+<label>Rot X<input data-field="rx" data-transform="mesh" step="1" type="number" value="-90"/></label>
+<label>Rot Y<input data-field="ry" data-transform="mesh" step="1" type="number" value="0"/></label>
+<label>Rot Z<input data-field="rz" data-transform="mesh" step="1" type="number" value="0"/></label>
+</div>
+<div class="transform-grid one">
+<label>Échelle<input data-field="scale" data-transform="mesh" min="0.0001" step="0.01" type="number" value="1"/></label>
+</div>
+</div>
+<div class="transform-card" data-layer="splat">
+<div class="transform-title"><span class="loader-dot splat"></span> Splats</div>
+<div class="mini-actions">
+<button class="btn-mini" data-kind="splat" data-transform-preset="zup-yup">Z-up → Y-up</button>
+<button class="btn-mini" data-kind="splat" data-transform-preset="reset">Reset</button>
+</div>
+<div class="transform-grid">
+<label>X<input data-field="px" data-transform="splat" step="0.01" type="number" value="0"/></label>
+<label>Y<input data-field="py" data-transform="splat" step="0.01" type="number" value="0"/></label>
+<label>Z<input data-field="pz" data-transform="splat" step="0.01" type="number" value="0"/></label>
+</div>
+<div class="transform-grid">
+<label>Rot X<input data-field="rx" data-transform="splat" step="1" type="number" value="-90"/></label>
+<label>Rot Y<input data-field="ry" data-transform="splat" step="1" type="number" value="0"/></label>
+<label>Rot Z<input data-field="rz" data-transform="splat" step="1" type="number" value="0"/></label>
+</div>
+<div class="transform-grid one">
+<label>Échelle<input data-field="scale" data-transform="splat" min="0.0001" step="0.01" type="number" value="1"/></label>
+</div>
+</div>
+<div class="mini-actions stacked">
+<button class="btn-mini wide" id="btn-center-origin">Centrer l'objet sur l'origine</button>
+<button class="btn-mini wide" id="btn-reset-all-transforms">Reset toutes les transformations</button>
+<button class="btn-mini wide" id="btn-frame-after-transform">Recadrer après modif</button>
+</div>
+</div></details><details class="tool-section" data-client-hide><summary>Édition mesh</summary><div class="tool-section-body">
+<p class="panel-hint">Nettoyage manuel du mesh : sélectionne des triangles au lasso/rectangle/rond/pinceau, vérifie le surlignage jaune, puis supprime.</p>
+<div class="mesh-edit-stats">
+  <div id="mesh-edit-total">—</div>
+  <div id="mesh-edit-selected">0 triangle sélectionné</div>
+</div>
+<div class="selection-tools lasso-actions">
+  <div class="control-row">
+    <label>Mode de sélection</label>
+    <select id="mesh-selection-mode">
+      <option value="lasso">Lasso libre</option>
+      <option value="rectangle">Rectangle</option>
+      <option value="circle">Rond</option>
+      <option value="brush">Pinceau</option>
+    </select>
+  </div>
+  <div class="control-row">
+    <label>Taille pinceau <span id="val-mesh-brush-size">36 px</span></label>
+    <input id="mesh-brush-size" max="160" min="4" step="2" type="range" value="36"/>
+  </div>
+  <div class="control-row">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input checked id="mesh-visible-only" type="checkbox"/>
+      Faces visibles uniquement (ne pas traverser les murs)
+    </label>
+  </div>
+  <div class="hint-row" style="font-size:11px;opacity:.75;margin-top:2px">
+    Sélection appliquée à tous les LOD. Maj = ajouter · Ctrl = retirer de la sélection.
+  </div>
+  <div class="mini-actions stacked">
+    <button class="btn-mini wide" id="btn-mesh-select">Activer sélection mesh</button>
+    <button class="btn-mini wide danger-soft" id="btn-mesh-delete-selection">Supprimer sélection mesh</button>
+    <button class="btn-mini wide" id="btn-mesh-clear-selection">Effacer sélection</button>
+    <button class="btn-mini wide" disabled id="btn-mesh-undo">Annuler dernière suppression</button>
+  </div>
+  <div class="control-row">
+    <label>Reclasser la sélection vers</label>
+    <select id="mesh-reclass-target"></select>
+  </div>
+  <div class="mini-actions stacked">
+    <button class="btn-mini wide" id="btn-mesh-reclass">Reclasser la sélection</button>
+  </div>
+</div>
+<p class="panel-hint small-hint">Astuce : la touche Suppr supprime la sélection jaune. Ctrl+Z annule la dernière suppression mesh si elle existe.</p>
+</div></details><details class="tool-section" data-client-hide><summary>Édition splats</summary><div class="tool-section-body">
+
+<p class="panel-hint">Mode type SuperSplat : isole les splats blancs/clairs, sélectionne au lasso/rectangle/rond/pinceau, vérifie le surlignage jaune, puis supprime les artefacts de contour.</p>
+<div class="control-row">
+<label>Luminosité min <span id="val-splat-lightness">72%</span></label>
+<input id="splat-lightness" max="0.98" min="0.35" step="0.01" type="range" value="0.72"/>
+</div>
+<div class="control-row">
+<label>Neutralité blanc/gris <span id="val-splat-neutrality">72%</span></label>
+<input id="splat-neutrality" max="1" min="0" step="0.01" type="range" value="0.72"/>
+</div>
+<div class="splat-edit-stats">
+<div id="splat-edit-total">—</div>
+<div id="splat-edit-visible">—</div>
+<div id="splat-edit-light">—</div>
+<div id="splat-edit-selected">—</div>
+</div>
+<div class="mini-actions stacked">
+<button class="btn-mini wide" id="btn-splat-light-preview">Afficher seulement blancs/clairs</button>
+<button class="btn-mini wide" id="btn-splat-show-all">Afficher tous les splats restants</button>
+<button class="btn-mini wide danger-soft" id="btn-splat-delete-light">Supprimer blancs/clairs détectés</button>
+</div>
+<div class="selection-tools lasso-actions">
+<div class="control-row">
+<label>Mode de sélection</label>
+<select id="splat-selection-mode">
+<option value="lasso">Lasso libre</option>
+<option value="rectangle">Rectangle</option>
+<option value="circle">Rond</option>
+<option value="brush">Pinceau</option>
+</select>
+</div>
+<div class="control-row">
+<label>Taille pinceau <span id="val-splat-brush-size">32 px</span></label>
+<input id="splat-brush-size" max="120" min="4" step="2" type="range" value="32"/>
+</div>
+<div class="mini-actions stacked">
+<button class="btn-mini wide" id="btn-splat-lasso">Activer sélection écran</button>
+<button class="btn-mini wide danger-soft" id="btn-splat-delete-selection">Supprimer sélection surlignée</button>
+<button class="btn-mini wide" id="btn-splat-clear-selection">Effacer sélection</button>
+<button class="btn-mini wide" disabled="" id="btn-splat-undo">Annuler dernière suppression (Ctrl+Z)</button>
+</div>
+</div>
+<div class="mini-actions stacked">
+<button class="btn-mini wide" id="btn-splat-export-current">Exporter PLY filtré</button>
+<button class="btn-mini wide" id="btn-splat-export-aligned">Exporter GS aligné définitivement</button>
+<button class="btn-mini wide" id="btn-splat-reset-filter">Restaurer splats origine</button>
+</div>
+</div></details><details class="tool-section" id="enrichment-tool-section"><summary>Enrichissement sémantique</summary><div class="tool-section-body">
+<label class="check-row small-check enrichment-enable-row"><input id="toggle-enrichment" type="checkbox"/> Activer l’enrichissement</label>
+<p class="panel-hint">Quand l’outil est actif, clique une couche ou un objet du maillage pour consulter et modifier ses attributs.</p>
+<div id="enrichment-tool-content" class="enrichment-tool-content">
+  <div class="me-msg">Active l’outil puis charge un GLB classifié.</div>
+</div>
+</div></details></div>
+</div>
+<div class="view-group">
+<button class="btn-icon" data-view="iso" title="Vue isométrique">ISO</button>
+<button class="btn-icon" data-view="top" title="Vue de dessus">TOP</button>
+<button class="btn-icon" data-view="front" title="Vue de face">FRONT</button>
+<button class="btn-icon" data-view="side" title="Vue de côté">SIDE</button>
+</div>
+<button class="btn-tool" id="btn-frame" title="Recentrer sur la scène">
+<svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewbox="0 0 14 14" width="14">
+<path d="M2 4V2H4M10 2H12V4M12 10V12H10M4 12H2V10"></path>
+<circle cx="7" cy="7" r="2"></circle>
+</svg>
+          Recadrer
+        </button>
+<button class="btn-tool" id="btn-screenshot" title="Capture d'écran haute résolution">
+<svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewbox="0 0 14 14" width="14">
+<rect height="9" rx="1" width="12" x="1" y="3"></rect>
+<circle cx="7" cy="7.5" r="2.5"></circle>
+<path d="M5 3l1-1h2l1 1"></path>
+</svg>
+          Capture
+        </button>
+<button class="btn-tool active" id="btn-toggle-gizmo" title="Afficher / masquer le repère central XYZ">XYZ</button>
+</div>
+</header>
+<aside id="sidebar-left">
+<div id="sidebar-scroll">
+<section class="panel" data-client-hide>
+<h2>Import</h2>
+<div class="loader-compact-grid">
+  <input accept=".glb,.gltf,.obj,.ply" hidden="" id="file-mesh" type="file"/>
+  <input accept=".ply,.splat,.spz" hidden="" id="file-splat" type="file"/>
+  <input accept=".ply" hidden="" id="file-pointcloud" type="file"/>
+  <button class="btn-mini wide" data-trigger="file-mesh">+ Mesh / OBJ</button>
+  <button class="btn-mini wide" data-trigger="file-splat">+ GS</button>
+  <button class="btn-mini wide" data-trigger="file-pointcloud">+ Nuage</button>
+  <button class="btn-mini wide tiles-import-btn" id="btn-import-tiles" title="Charge une sortie MAGO Pipeline V42 : scene_tiles.json + dossier tiles">+ MAGO Tiles</button>
+</div>
+<div class="drop-zone compact-drop" data-target="auto">
+  <div class="drop-msg">Glisse-dépose ici : mesh GLB/PLY/OBJ · splats · nuage PLY · scene_tiles.json</div>
+  <div class="drop-status" id="status-auto">Aucun fichier</div>
+</div>
+<div class="tiny-help">Astuce : clique un objet dans la liste puis Suppr pour le retirer.</div>
+</section><section class="panel">
+<h2>Objets importés</h2>
+<div class="scene-object-list" id="scene-object-list"></div>
+<div class="mesh-sub-layer-empty" id="scene-object-empty">Aucun objet chargé.</div>
+<div class="legacy-layer-details"><h3 class="subhead">Détails du mesh actif</h3>
+<div class="layer-row" id="layer-mesh">
+<label class="layer-toggle">
+<input checked="" disabled="" id="toggle-mesh" type="checkbox"/>
+<span class="check"></span>
+<span class="layer-name">Mesh</span>
+</label>
+<span class="layer-count" id="count-mesh">—</span>
+</div>
+<div class="layer-controls" id="ctrl-mesh">
+<div class="control-row">
+<label>Opacité <span id="val-mesh-opacity">100%</span></label>
+<input id="mesh-opacity" max="1" min="0" step="0.05" type="range" value="1"/>
+</div>
+<div class="control-row">
+<label>Rendu</label>
+<select id="mesh-mode">
+<option value="solid">Solide</option>
+<option value="wireframe">Filaire</option>
+<option value="edges">Solide + arêtes</option>
+</select>
+</div>
+<div class="mesh-sub-layers">
+<div class="mesh-sub-layer-head">
+<span>Objets du GLB / mesh</span>
+<span id="mesh-sub-layer-summary">—</span>
+</div>
+<input class="mini-search" id="mesh-layer-search" placeholder="Filtrer : mur, sol, table…" type="search"/>
+<div class="mini-actions compact-actions">
+<button class="btn-mini" id="btn-mesh-layers-all">Tout afficher</button>
+<button class="btn-mini" id="btn-mesh-layers-none">Tout masquer</button>
+</div>
+<div class="mesh-sub-layer-empty" id="mesh-sub-layer-empty">Charge un GLB/mesh pour voir ses couches.</div>
+<div class="mesh-sub-layer-list" id="mesh-sub-layer-list"></div>
+</div>
+<div class="mini-actions stacked compact-actions">
+<button class="btn-mini wide danger-soft" data-client-hide id="btn-unload-mesh">Supprimer / décharger le mesh</button>
+</div>
+</div>
+<div class="layer-row" id="layer-splat">
+<label class="layer-toggle">
+<input checked="" disabled="" id="toggle-splat" type="checkbox"/>
+<span class="check"></span>
+<span class="layer-name">Splats</span>
+</label>
+<span class="layer-count" id="count-splat">—</span>
+</div>
+<div class="mini-actions stacked compact-actions">
+<button class="btn-mini wide danger-soft" data-client-hide id="btn-unload-splat">Supprimer / décharger les splats</button>
+</div>
+</div>
+</section>
+<section class="panel">
+<h2>Scène</h2>
+<div class="control-row" data-client-hide>
+<label class="inline">
+<input checked="" id="toggle-grid" type="checkbox"/>
+<span>Grille au sol</span>
+</label>
+</div>
+<div class="control-row" data-client-hide>
+<label class="inline">
+<input checked="" id="toggle-axes" type="checkbox"/>
+<span>Repère XYZ</span>
+</label>
+</div>
+<div class="control-row">
+<label>Couleur de fond</label>
+<div class="bg-swatches">
+<button class="swatch" data-bg="#1a1a1a" style="background:#1a1a1a"></button>
+<button class="swatch" data-bg="#2d2d2d" style="background:#2d2d2d"></button>
+<button class="swatch" data-bg="#3d4046" style="background:#3d4046"></button>
+<button class="swatch" data-bg="#f5f5f5" style="background:#f5f5f5"></button>
+<button class="swatch" data-bg="#ffffff" style="background:#ffffff"></button>
+<button class="swatch swatch-sunset" data-bg-mode="sunset" title="Ciel coucher de soleil"></button>
+</div>
+</div>
+<div class="scene-info-block">
+<div class="control-subtitle">Dimensions</div>
+<div class="bbox-info" id="bbox-info">
+<div class="cam-row">
+<span>bbox</span>
+<code id="bbox-size">—</code>
+</div>
+<div class="cam-row">
+<span>centre</span>
+<code id="bbox-center">—</code>
+</div>
+</div>
+</div>
+<div class="performance-block">
+<div class="control-subtitle">Performance</div>
+<div class="control-row">
+<label>Profil</label>
+<select id="performance-preset">
+<option value="quality">Qualité</option>
+<option value="balanced" selected>Équilibré</option>
+<option value="performance">Performance</option>
+<option value="huge">Très gros fichiers</option>
+</select>
+</div>
+<div class="control-row">
+<label>Résolution rendu <span id="val-render-scale">100%</span></label>
+<input id="render-scale" max="1" min="0.45" step="0.05" type="range" value="1"/>
+</div>
+<div class="control-row">
+<label class="inline">
+<input id="toggle-adaptive-render" type="checkbox"/>
+<span>Alléger pendant les déplacements</span>
+</label>
+</div>
+<div class="control-row">
+<label>LOD mesh</label>
+<select id="mesh-lod-mode">
+<option value="auto" selected>Auto selon zoom</option>
+<option value="0">Forcer LOD0 / HD</option>
+<option value="1">Forcer LOD1 / moyen</option>
+<option value="2">Forcer LOD2 / léger</option>
+<option value="3">Forcer LOD3 / très léger</option>
+</select>
+</div>
+<p class="panel-hint small-hint">Le LOD change la géométrie affichée selon le zoom. En cas de doute, force LOD2 ici pour vérifier qu'il existe.</p>
+<p class="panel-hint small-hint">Baisse la résolution de rendu pour naviguer plus fluide. Les données ne sont pas modifiées.</p>
+</div>
+</section>
+
+<section class="panel">
+<h2>Caméra</h2>
+<div class="cam-info">
+<div class="cam-row">
+<span>cible</span>
+<code id="cam-target">—</code>
+</div>
+<div class="cam-row">
+<span>α</span>
+<code id="cam-alpha">—</code>
+</div>
+<div class="cam-row">
+<span>β</span>
+<code id="cam-beta">—</code>
+</div>
+<div class="cam-row">
+<span>r</span>
+<code id="cam-radius">—</code>
+</div>
+</div>
+<button class="btn-secondary" id="btn-copy-cam">Copier la pose</button>
+<div class="camera-control-block">
+<div class="control-row">
+<label>Sensibilité souris <span id="val-mouse-sensitivity">100%</span></label>
+<input id="mouse-sensitivity" max="3" min="0.25" step="0.05" type="range" value="1"/>
+</div>
+<div class="control-row">
+<label>Vitesse zoom <span id="val-zoom-sensitivity">100%</span></label>
+<input id="zoom-sensitivity" max="10" min="0.10" step="0.05" type="range" value="1"/>
+</div>
+<div class="control-row">
+<label>Déplacement clic droit <span id="val-pan-sensitivity">35%</span></label>
+<input id="pan-sensitivity" max="2" min="0.05" step="0.05" type="range" value="0.35"/>
+</div>
+<div class="control-row">
+<label>Vitesse clavier <span id="val-keyboard-speed">1.0 m/s</span></label>
+<input id="keyboard-speed" max="8" min="0.1" step="0.1" type="range" value="1"/>
+</div>
+<p class="panel-hint small-hint">Flèches ou Z/Q/S/D : déplacement type FPS dans le plan horizontal.</p>
+</div>
+</section>
+<section class="panel" data-client-hide>
+<h2>Export</h2>
+<p class="panel-hint">Le GLB exporte le mesh. Le PLY GS modifié conserve les suppressions et bake déplacement, rotation et échelle. Le ZIP regroupe la scène complète.</p>
+<button class="btn-secondary" id="btn-export-mesh-glb">Exporter mesh GLB</button>
+<button class="btn-secondary" id="btn-export-mesh-ply-mago">Exporter mesh PLY (MAGO/CloudCompare)</button>
+<button class="btn-secondary" id="btn-export-mesh-obj-mago">Exporter mesh OBJ (MAGO/CloudCompare)</button>
+<button class="btn-secondary" id="btn-export-splat-ply-modified">Exporter GS PLY modifié (filtré + aligné)</button>
+<button class="btn-secondary" id="btn-export-config">Exporter config JSON</button>
+<button class="btn-secondary" id="btn-import-config">Charger config JSON</button>
+<input accept=".json" hidden="" id="file-config" type="file"/>
+<button class="btn-action export-main" id="btn-export-package">Exporter package ZIP</button>
+<button class="btn-secondary" id="btn-create-client-view" title="Crée un accès client en base avec identifiant, mot de passe et expiration">Créer vue client</button>
+</section>
+</div>
+<div id="sidebar-resizer" title="Étirer le panneau"></div>
+</aside>
+<main id="canvas-wrap">
+<canvas id="render-canvas" touch-action="none"></canvas>
+<canvas id="lasso-canvas"></canvas>
+<div id="canvas-overlay-bl">
+<div class="overlay-stat"><span class="stat-label">FPS</span><span class="stat-value" id="stat-fps">—</span></div>
+<div class="overlay-stat"><span class="stat-label">SPLATS</span><span class="stat-value" id="stat-splats">—</span></div>
+<div class="overlay-stat"><span class="stat-label">TRIS</span><span class="stat-value" id="stat-tris">—</span></div>
+</div>
+<div id="canvas-overlay-br">
+<div class="lod-hud" id="lod-hud">
+<span class="lod-title">LOD auto</span>
+<strong id="lod-current">LOD unique</strong>
+<small id="lod-detail">aucun groupe LOD détecté</small>
+<div class="lod-hud-buttons" aria-label="Contrôle rapide LOD">
+<button type="button" data-lod-force="auto" class="active">Auto</button>
+<button type="button" data-lod-force="0">0</button>
+<button type="button" data-lod-force="1">1</button>
+<button type="button" data-lod-force="2">2</button>
+</div>
+<small id="lod-levels-detail" class="lod-levels-detail"></small>
+</div>
+</div>
+<div id="canvas-progress">
+<div id="canvas-progress-bar"></div>
+<div id="canvas-progress-label"></div>
+</div>
+</main>
+</div>
+<div id="client-login" hidden>
+<div class="client-login-card">
+<img class="client-login-logo" src="/MAGO_viewer_icon.ico" alt="MAGO Viewer"/>
+<h1 class="client-login-title">MAGO Viewer</h1>
+<p class="client-login-sub">Accès client — connexion requise</p>
+<label class="client-login-field">Identifiant
+<input id="client-login-user" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"/>
+</label>
+<label class="client-login-field">Mot de passe
+<input id="client-login-pass" type="password" autocomplete="current-password"/>
+</label>
+<button class="btn-action" id="client-login-submit">Se connecter</button>
+<div class="client-login-error" id="client-login-error"></div>
+</div>
+</div>
+<div id="client-loading" hidden>
+<div class="client-loading-card">
+<div class="client-loading-title" id="client-loading-title">Chargement de la scène…</div>
+<div class="client-loading-bar"><div class="client-loading-fill" id="client-loading-fill"></div></div>
+<div class="client-loading-pct" id="client-loading-pct"></div>
+</div>
+</div>
+<div id="toast-host"></div>
+<script src="/src/main.ts" type="module"></script>
+</body>
+</html>

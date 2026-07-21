@@ -1,0 +1,62 @@
+INSTALLATION — VERSION BASE DE DONNÉES DES ACCÈS CLIENT
+======================================================
+
+Cette version ajoute une table PostgreSQL modifiable dans pgAdmin :
+
+  client_access
+
+Colonnes importantes :
+
+  lien_client
+  identifiant
+  mot_de_passe
+  date_expiration
+  active
+  model_id
+
+1) Extraire le zip dans :
+
+  C:\MAGO_Viewer\
+
+2) Aller dans le dossier :
+
+  C:\MAGO_Viewer\MAGO_Viewer_CLIENT_BDD_ACCES
+
+3) Installer / builder le viewer :
+
+  npm install
+  npm run build
+
+4) Aller côté API :
+
+  cd api\mago-enrichment-api
+  npm install
+
+5) Créer le fichier .env depuis .env.example.
+
+6) Créer / mettre à jour la table PostgreSQL :
+
+  psql "postgresql://postgres:TON_MDP@localhost:5432/mago_enrichment" -f sql/001_client_access.sql
+
+7) Créer un modèle :
+
+  npm run admin -- register-model --name "Salle C10"
+
+8) Créer un accès client :
+
+  npm run admin -- create --user dupont --pass "MotDePasse#2026" --model 3 --expires "2026-08-30 18:45"
+
+9) Modifier l'abonnement dans pgAdmin :
+
+  table client_access > colonne date_expiration
+
+Exemple SQL :
+
+  SET TIME ZONE 'Europe/Paris';
+  UPDATE client_access
+  SET date_expiration = '2026-08-30 18:45'::timestamptz
+  WHERE identifiant = 'dupont';
+
+10) Lancer l'API :
+
+  npm start

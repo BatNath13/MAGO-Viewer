@@ -1,0 +1,40 @@
+MAGO Viewer — version accès client à la minute près
+
+IMPORTANT
+- Cette version est basée sur le zip complet MAGO_Viewer (11).
+- Ne travaille pas dans un dossier patch seul. Il faut un vrai projet complet.
+- Le dossier .env n’est pas fourni : garde ton .env local ou recopie .env.example.
+
+Installation propre recommandée sous Windows PowerShell
+
+1) Extraire ce zip dans un nouveau dossier, par exemple :
+   C:\MAGO_Viewer\MAGO_Viewer_CLIENT_PRECISION_MINUTE
+
+2) Dépendances viewer :
+   cd "C:\MAGO_Viewer\MAGO_Viewer_CLIENT_PRECISION_MINUTE"
+   npm install
+   npm run build
+
+3) Dépendances API :
+   cd "C:\MAGO_Viewer\MAGO_Viewer_CLIENT_PRECISION_MINUTE\api\mago-enrichment-api"
+   npm install
+   npm run typecheck
+
+4) Migration si pas encore faite :
+   psql "postgresql://USER:PASS@localhost:5432/mago_enrichment" -f sql/001_client_access.sql
+
+5) Dans api\mago-enrichment-api\.env :
+   JWT_SECRET=<secret long>
+   CLIENT_EXPIRY_TIMEZONE=Europe/Paris
+   CLIENT_AUTH_REQUIRED=false   # en dev local
+
+6) Créer un accès avec coupure précise :
+   npm run admin -- create --user dupont --pass "MotDePasse#2026" --model 3 --expires "2026-08-30 18:45"
+
+7) Modifier une expiration :
+   npm run admin -- expire --user dupont --expires "2026-10-31 12:30"
+
+Notes
+- Si --expires contient seulement une date, par exemple 2026-08-30, la coupure se fait à 23:59:59 ce jour-là.
+- Avec date + heure + minute, la coupure se fait précisément à cette minute.
+- Ne lance pas npm audit fix --force.

@@ -1,0 +1,20 @@
+# Dépendances (réinstallées via npm install)
+node_modules/
+
+# Secrets — NE JAMAIS COMMITER
+.env
+!.env.example
+
+# Builds
+dist/
+launcher/build/
+launcher/dist/
+
+# Journaux et sauvegardes locales
+logs/
+*.log
+*.backup*
+*.bak
+*.bak_*
+_backup_*/
+SAUVEGARDE_*/
