@@ -228,13 +228,26 @@ CLIENT_LOCAL_VIEWER_URL=http://localhost:3001
     }
     finally { Pop-Location }
 
-    Write-Step "8/8 - Desktop shortcut and health test"
+    Write-Step "8/8 - Graphical launcher, desktop shortcut and health test"
+    $LauncherBuildScript = Join-Path $Project "RECONSTRUIRE_EXE_MAGO.ps1"
+    $LauncherExe = Join-Path $Project "launcher\dist\MAGO.exe"
+
+    if (-not (Test-Path $LauncherBuildScript)) {
+        throw "Launcher build script not found: $LauncherBuildScript"
+    }
+
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $LauncherBuildScript
+
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $LauncherExe)) {
+        throw "Graphical launcher build failed: $LauncherExe"
+    }
+
     $Desktop = [Environment]::GetFolderPath("Desktop")
     $ShortcutPath = Join-Path $Desktop "MAGO Viewer.lnk"
     $Shell = New-Object -ComObject WScript.Shell
     $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $Shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$Project\LANCER_MAGO_VIEWER.ps1`""
+    $Shortcut.TargetPath = $LauncherExe
+    $Shortcut.Arguments = ""
     $Shortcut.WorkingDirectory = $Project
     $Icon = Get-ChildItem $Project -Filter "*.ico" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($Icon) { $Shortcut.IconLocation = $Icon.FullName }
