@@ -34,8 +34,7 @@ Built with Babylon.js, Vite and TypeScript on the browser side, and a Fastify + 
 │   ├── LANCER_TUNNEL_PUBLIC_MAGO.ps1 Client sharing via Cloudflare tunnel
 │   ├── SAUVEGARDER_BDD.ps1 / RESTAURER_BDD.ps1
 │   └── README_*.md                   Per-feature documentation (French)
-├── launcher/                         Launcher sources
-└── INSTALLER_VIEWER_COMPLET.ps1      Post-clone installation
+└── INSTALLER_VIEWER_COMPLET.ps1      One-shot installer (prerequisites + build)
 ```
 
 ## Prerequisites
@@ -47,49 +46,29 @@ Built with Babylon.js, Vite and TypeScript on the browser side, and a Fastify + 
 
 ## Installation
 
-### 1. Get the code and dependencies
+### Recommended: one-shot installer
 
-```bash
+From the repository root, in PowerShell:
+
+```powershell
 git clone <URL_OF_THIS_REPO>
-cd mago-viewer/MAGO_Viewer_CLIENT_BDD_ACCES
-
-npm install                    # frontend
-cd api/mago-enrichment-api
-npm install                    # API
+cd MAGO-Viewer
+powershell -NoProfile -ExecutionPolicy Bypass -File .\INSTALLER_VIEWER_COMPLET.ps1
 ```
 
-### 2. Install and initialize PostgreSQL
+The installer (it re-elevates to administrator on its own) installs Node.js LTS, PostgreSQL 16 and cloudflared through `winget` if they are missing, starts PostgreSQL, creates the two empty databases (`mago_enrichment`, `mago_access`), loads the clean schema, generates a local `.env` with a random JWT secret, builds the viewer and adds a desktop shortcut. During the PostgreSQL setup window, choose and **remember the `postgres` password** — the installer asks for it again right after to create the databases. It finishes by checking the API on `http://localhost:3001/api/health`.
 
-Download the PostgreSQL 16 Windows x64 **binaries zip** ([enterprisedb.com](https://www.enterprisedb.com/download-postgresql-binaries)), then extract so that you get `C:\PGSQL\pgsql\`.
+Then launch via the **MAGO Viewer** desktop shortcut (or `LANCER_MAGO_VIEWER.ps1`): PostgreSQL, the API (port 3001) and the viewer start, and the browser opens. See [`INSTALLATION_PUBLIQUE.md`](INSTALLATION_PUBLIQUE.md) for exactly what the installer creates.
 
-> The launcher expects PostgreSQL in `C:\PGSQL`. To use another location, adjust the `PG_BIN` / `PG_DATA` paths at the top of `launcher/mago_launch.py` and of the `*_BDD.ps1` scripts.
+### Advanced: portable PostgreSQL
 
-Initialize the database:
+Instead of a system install you can run PostgreSQL from the Windows x64 **binaries zip** ([enterprisedb.com](https://www.enterprisedb.com/download-postgresql-binaries)) extracted to `C:\PGSQL\pgsql\`, initialized with:
 
 ```powershell
 & "C:\PGSQL\pgsql\bin\initdb.exe" -D "C:\PGSQL\pgdata" -U postgres -W -E UTF8
 ```
 
-Creating the enrichment database and configuring client access are described in `MAGO_Viewer_CLIENT_BDD_ACCES/INSTALL_BDD_ACCES_CLIENT.txt` (French — the `psql` commands are copy-pasteable as-is). To migrate data from an existing machine: `SAUVEGARDER_BDD.ps1` on the old machine then `RESTAURER_BDD.ps1` on the new one.
-
-### 3. Configure secrets
-
-```powershell
-cd MAGO_Viewer_CLIENT_BDD_ACCES\api\mago-enrichment-api
-copy .env.example .env
-notepad .env      # set the PostgreSQL password and a JWT secret
-```
-
-`REGENERER_SECRET_JWT.ps1` generates a random JWT secret.
-
-### 4. Build and launch
-
-```powershell
-cd ..\..\..
-powershell -ExecutionPolicy Bypass -File INSTALLER_VIEWER_COMPLET.ps1
-```
-
-Then double-click the **MAGO Viewer** desktop icon (or `LANCER_MAGO_VIEWER.ps1`): the launcher starts PostgreSQL, the API (port 3001) and the viewer, and opens the browser.
+The launcher and the `*_BDD.ps1` scripts auto-detect **either** a `postgresql*` Windows service **or** this portable `C:\PGSQL` layout. Database and client-access details are in `MAGO_Viewer_CLIENT_BDD_ACCES/INSTALL_BDD_ACCES_CLIENT.txt` (French — the `psql` commands are copy-pasteable as-is). To migrate data between machines: `SAUVEGARDER_BDD.ps1` then `RESTAURER_BDD.ps1`.
 
 ## Sharing a scene with a client
 

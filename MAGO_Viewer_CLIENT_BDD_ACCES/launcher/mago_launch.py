@@ -22,6 +22,7 @@ from tkinter import ttk
 CREATE_NO_WINDOW = 0x08000000
 STARTED_PROCS = []
 STARTED_PG = False
+STOP_PGCTL = None
 LOG_HANDLES = []
 
 
@@ -131,31 +132,87 @@ def run_npm(cwd, script, log_name):
     return process
 
 
+def find_pg_bin():
+    """Locate a PostgreSQL bin directory: PATH, portable, then Program Files."""
+    found = shutil.which("psql")
+    if found:
+        return os.path.dirname(found)
+    if os.path.isdir(CONFIG["PG_BIN"]):
+        return CONFIG["PG_BIN"]
+    base = r"C:\Program Files\PostgreSQL"
+    if os.path.isdir(base):
+        for name in sorted(os.listdir(base), reverse=True):
+            candidate = os.path.join(base, name, "bin")
+            if os.path.isfile(os.path.join(candidate, "pg_ctl.exe")):
+                return candidate
+    return None
+
+
+def find_pg_service():
+    """Return the name of a 'postgresql*' Windows service, or None."""
+    try:
+        out = subprocess.check_output(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-Service -ErrorAction SilentlyContinue | "
+             "Where-Object { $_.Name -like 'postgresql*' } | "
+             "Sort-Object Name -Descending | "
+             "Select-Object -First 1 -ExpandProperty Name"],
+            creationflags=CREATE_NO_WINDOW,
+            stderr=subprocess.DEVNULL,
+        )
+        name = out.decode("ascii", "ignore").strip()
+        return name or None
+    except Exception:
+        return None
+
+
+def pg_reachable():
+    """True if PostgreSQL can be started one way or another."""
+    return (port_open(CONFIG["PG_PORT"])
+            or find_pg_service() is not None
+            or os.path.isfile(os.path.join(CONFIG["PG_DATA"], "PG_VERSION")))
+
+
 def start_postgres():
-    global STARTED_PG
+    global STARTED_PG, STOP_PGCTL
     if port_open(CONFIG["PG_PORT"]):
         ui("PostgreSQL est deja en marche.", 25)
         return
 
     ui("Demarrage de PostgreSQL...", 10)
-    pgctl = os.path.join(CONFIG["PG_BIN"], "pg_ctl.exe")
-    if not os.path.exists(pgctl):
-        raise RuntimeError("pg_ctl.exe introuvable : {}".format(pgctl))
-    if not os.path.isdir(CONFIG["PG_DATA"]):
-        raise RuntimeError("Dossier PostgreSQL data introuvable : {}".format(CONFIG["PG_DATA"]))
 
-    server_log = os.path.join(os.path.dirname(CONFIG["PG_DATA"]), "postgresql.log")
-    result = subprocess.run(
-        [pgctl, "-D", CONFIG["PG_DATA"], "-l", server_log, "start"],
-        creationflags=CREATE_NO_WINDOW,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if result.returncode != 0 and not port_open(CONFIG["PG_PORT"]):
-        raise RuntimeError("PostgreSQL n'a pas pu demarrer. Consulte {}.".format(server_log))
+    # 1. Standard install: start the Windows service.
+    service = find_pg_service()
+    if service:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Start-Service", "-Name", service],
+            creationflags=CREATE_NO_WINDOW,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if wait_until(lambda: port_open(CONFIG["PG_PORT"]), 20):
+            ui("PostgreSQL est pret.", 30)
+            return
+
+    # 2. Portable install: pg_ctl on a data directory.
+    pg_bin = find_pg_bin()
+    if pg_bin and os.path.isfile(os.path.join(CONFIG["PG_DATA"], "PG_VERSION")):
+        pgctl = os.path.join(pg_bin, "pg_ctl.exe")
+        server_log = os.path.join(os.path.dirname(CONFIG["PG_DATA"]), "postgresql.log")
+        subprocess.run(
+            [pgctl, "-D", CONFIG["PG_DATA"], "-l", server_log, "start"],
+            creationflags=CREATE_NO_WINDOW,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        STARTED_PG = True
+        STOP_PGCTL = pgctl
+
     if not wait_until(lambda: port_open(CONFIG["PG_PORT"]), 20):
-        raise RuntimeError("PostgreSQL ne repond pas sur le port 5432.")
-    STARTED_PG = True
+        raise RuntimeError(
+            "PostgreSQL n'a pas pu demarrer (ni service Windows, "
+            "ni base portable dans {}).".format(CONFIG["PG_DATA"])
+        )
     ui("PostgreSQL est pret.", 30)
 
 
@@ -172,7 +229,7 @@ def start_api():
 
 
 def validate_paths():
-    for key in ("VIEWER_DIR", "API_DIR", "PG_BIN", "PG_DATA"):
+    for key in ("VIEWER_DIR", "API_DIR"):
         path = CONFIG[key]
         if not os.path.exists(path):
             raise RuntimeError("Chemin introuvable : {} = {}".format(key, path))
@@ -180,6 +237,11 @@ def validate_paths():
         raise RuntimeError("npm est introuvable. Node.js doit etre installe.")
     if not os.path.exists(os.path.join(CONFIG["API_DIR"], ".env")):
         raise RuntimeError("Fichier .env introuvable dans l'API. Copie .env.example vers .env et renseigne PostgreSQL.")
+    if not pg_reachable():
+        raise RuntimeError(
+            "PostgreSQL introuvable : ni service Windows, "
+            "ni base portable dans {}.".format(CONFIG["PG_DATA"])
+        )
 
 
 def boot():
@@ -207,10 +269,10 @@ def shutdown():
         except Exception:
             pass
 
-    if STARTED_PG:
+    if STARTED_PG and STOP_PGCTL:
         try:
             subprocess.run(
-                [os.path.join(CONFIG["PG_BIN"], "pg_ctl.exe"), "-D", CONFIG["PG_DATA"], "stop", "-m", "fast"],
+                [STOP_PGCTL, "-D", CONFIG["PG_DATA"], "stop", "-m", "fast"],
                 creationflags=CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
