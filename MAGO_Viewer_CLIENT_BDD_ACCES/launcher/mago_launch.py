@@ -77,8 +77,8 @@ PROJECT_ROOT = find_project_root()
 CONFIG = {
     "VIEWER_DIR": PROJECT_ROOT,
     "API_DIR": os.path.join(PROJECT_ROOT, "api", "mago-enrichment-api"),
-    "PG_BIN": r"D:\PGSQL\pgsql\bin",
-    "PG_DATA": r"D:\PGSQL\pgdata",
+    "PG_BIN": r"C:\PGSQL\pgsql\bin",
+    "PG_DATA": r"C:\PGSQL\pgdata",
     "API_PORT": 3001,
     "PG_PORT": 5432,
 }

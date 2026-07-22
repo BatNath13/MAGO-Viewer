@@ -1,3 +1,6 @@
+
+> Clean Windows installation without private data: see [INSTALLATION_PUBLIQUE.md](INSTALLATION_PUBLIQUE.md).
+
 **🇬🇧 English** | [🇫🇷 Français](README.fr.md)
 
 # MAGO Viewer

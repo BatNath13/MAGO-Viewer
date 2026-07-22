@@ -1,62 +1,35 @@
-INSTALLATION — VERSION BASE DE DONNÉES DES ACCÈS CLIENT
-======================================================
+MAGO VIEWER - CLEAN WINDOWS INSTALLATION
+========================================
 
-Cette version ajoute une table PostgreSQL modifiable dans pgAdmin :
+Public repository policy
+------------------------
+The repository contains code and an empty database schema only.
+It does not contain models, attributes, client accounts, passwords, GLB/PLY/SPZ
+files, point clouds, Gaussian splats, PostgreSQL dumps or a real .env file.
 
-  client_access
+Installation
+------------
+1. Clone or extract the repository.
+2. Right-click INSTALLER_VIEWER_COMPLET.ps1 and run it with PowerShell, or run:
 
-Colonnes importantes :
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\INSTALLER_VIEWER_COMPLET.ps1
 
-  lien_client
-  identifiant
-  mot_de_passe
-  date_expiration
-  active
-  model_id
+3. Enter the local PostgreSQL password when prompted.
+4. The installer creates empty databases mago_enrichment and mago_access,
+   installs Node dependencies, builds the viewer, creates a local .env and a
+   desktop shortcut, then tests /api/health.
 
-1) Extraire le zip dans :
+Database contents created by the installer
+------------------------------------------
+mago_enrichment:
+  mago_class, model, object, attribute, f_instantiate_object
 
-  C:\MAGO_Viewer\
+mago_access:
+  client_access and client_access_admin
 
-2) Aller dans le dossier :
+Classes are created lazily from class keys found in imported MAGO scenes.
+No example project or survey is installed.
 
-  C:\MAGO_Viewer\MAGO_Viewer_CLIENT_BDD_ACCES
-
-3) Installer / builder le viewer :
-
-  npm install
-  npm run build
-
-4) Aller côté API :
-
-  cd api\mago-enrichment-api
-  npm install
-
-5) Créer le fichier .env depuis .env.example.
-
-6) Créer / mettre à jour la table PostgreSQL :
-
-  psql "postgresql://postgres:TON_MDP@localhost:5432/mago_enrichment" -f sql/001_client_access.sql
-
-7) Créer un modèle :
-
-  npm run admin -- register-model --name "Salle C10"
-
-8) Créer un accès client :
-
-  npm run admin -- create --user dupont --pass "MotDePasse#2026" --model 3 --expires "2026-08-30 18:45"
-
-9) Modifier l'abonnement dans pgAdmin :
-
-  table client_access > colonne date_expiration
-
-Exemple SQL :
-
-  SET TIME ZONE 'Europe/Paris';
-  UPDATE client_access
-  SET date_expiration = '2026-08-30 18:45'::timestamptz
-  WHERE identifiant = 'dupont';
-
-10) Lancer l'API :
-
-  npm start
+Never commit
+------------
+.env, storage/, SAUVEGARDES_BDD/, *.dump, node_modules/, logs and client URLs.

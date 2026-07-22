@@ -1,27 +1,40 @@
-# ============================================================
-# MAGO Viewer - Sauvegarde des bases PostgreSQL
-# Sauvegarde mago_enrichment (semantique) et mago_access (clients)
-# vers .\SAUVEGARDES_BDD\<horodatage>\
-# A lancer regulierement (et AVANT toute manipulation risquee).
-# ============================================================
 $ErrorActionPreference = "Stop"
-$PG_BIN  = "D:\PGSQL\pgsql\bin"
-$BACKUPS = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "SAUVEGARDES_BDD"
-$STAMP   = Get-Date -Format "yyyyMMdd_HHmmss"
-$DEST    = Join-Path $BACKUPS $STAMP
+$ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
+$BACKUPS = Join-Path $ROOT "SAUVEGARDES_BDD"
+$STAMP = Get-Date -Format "yyyyMMdd_HHmmss"
+$DEST = Join-Path $BACKUPS $STAMP
+
+function Find-PgBin {
+    $candidates = @("C:\PGSQL\pgsql\bin")
+    $candidates += Get-ChildItem "C:\Program Files\PostgreSQL" -Directory -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName "bin" }
+    foreach ($dir in $candidates) {
+        if (Test-Path (Join-Path $dir "pg_dump.exe")) { return $dir }
+    }
+    return $null
+}
+
+$PG_BIN = Find-PgBin
+if (-not $PG_BIN) { throw "pg_dump.exe was not found." }
 New-Item -ItemType Directory -Path $DEST -Force | Out-Null
 
-$env:PGPASSWORD = "12345678"   # mot de passe postgres du .env
-foreach ($db in @("mago_enrichment", "mago_access")) {
-    $file = Join-Path $DEST "$db.dump"
-    Write-Host "Sauvegarde de $db ..." -ForegroundColor Yellow
-    & "$PG_BIN\pg_dump.exe" -h localhost -p 5432 -U postgres -F c -f $file $db
-    if ($LASTEXITCODE -ne 0) { throw "Echec pg_dump sur $db" }
-    Write-Host "  -> $file" -ForegroundColor Green
+$SecurePassword = Read-Host "PostgreSQL password for user postgres" -AsSecureString
+$Bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
+try {
+    $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Bstr)
+    foreach ($db in @("mago_enrichment", "mago_access")) {
+        $file = Join-Path $DEST "$db.dump"
+        Write-Host "Backup: $db" -ForegroundColor Yellow
+        & (Join-Path $PG_BIN "pg_dump.exe") -h localhost -p 5432 -U postgres -F c --no-owner --no-privileges -f $file $db
+        if ($LASTEXITCODE -ne 0) { throw "pg_dump failed for $db" }
+        Write-Host "  -> $file" -ForegroundColor Green
+    }
 }
-Remove-Item Env:\PGPASSWORD
+finally {
+    Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Bstr)
+}
 
-# Menage : garder les 15 sauvegardes les plus recentes
 Get-ChildItem $BACKUPS -Directory | Sort-Object Name -Descending | Select-Object -Skip 15 | Remove-Item -Recurse -Force
-Write-Host "`nSauvegarde terminee : $DEST" -ForegroundColor Green
-Read-Host "Entree pour fermer"
+Write-Host "`nBackup completed: $DEST" -ForegroundColor Green
+Read-Host "Enter to close"

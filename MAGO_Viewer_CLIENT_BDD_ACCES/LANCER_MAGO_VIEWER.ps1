@@ -1,41 +1,71 @@
-﻿$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 
 $ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
 $API  = Join-Path $ROOT "api\mago-enrichment-api"
 
-$PG_CTL = "D:\PGSQL\pgsql\bin\pg_ctl.exe"
-$PGDATA = "D:\PGSQL\pgdata"
-$PGLOG  = "D:\PGSQL\postgresql.log"
-
-# 1) Démarrer PostgreSQL si besoin
-$pgStatus = & $PG_CTL -D $PGDATA status 2>&1
-if ($LASTEXITCODE -ne 0 -or ($pgStatus -notmatch "server is running|serveur est en cours")) {
-    & $PG_CTL -D $PGDATA -l $PGLOG start | Out-Null
-    Start-Sleep -Seconds 2
+function Refresh-Path {
+    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
 }
 
-# 2) Démarrer l'API si elle n'est pas déjà lancée
-$apiOk = $false
-try {
-    $r = Invoke-WebRequest "http://127.0.0.1:3001/api/health" -UseBasicParsing -TimeoutSec 2
-    if ($r.StatusCode -eq 200) { $apiOk = $true }
-} catch {}
+function Find-Npm {
+    $cmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $candidate = "C:\Program Files\nodejs\npm.cmd"
+    if (Test-Path $candidate) { return $candidate }
+    return $null
+}
 
-if (-not $apiOk) {
-    Start-Process powershell.exe -WindowStyle Minimized -ArgumentList @(
-        "-NoExit",
-        "-ExecutionPolicy", "Bypass",
-        "-Command", "cd `"$API`"; npm start"
+Refresh-Path
+$Npm = Find-Npm
+if (-not $Npm) { throw "npm.cmd was not found. Run INSTALLER_VIEWER_COMPLET.ps1 first." }
+if (-not (Test-Path (Join-Path $API ".env"))) { throw ".env is missing. Run INSTALLER_VIEWER_COMPLET.ps1 first." }
+
+$PgService = Get-Service -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like "postgresql*" } |
+    Sort-Object Name -Descending |
+    Select-Object -First 1
+
+if ($PgService -and $PgService.Status -ne "Running") {
+    Start-Service $PgService.Name
+    $PgService.WaitForStatus("Running", [TimeSpan]::FromSeconds(20))
+}
+elseif (-not $PgService) {
+    $PgCtlCandidates = @(
+        "C:\PGSQL\pgsql\bin\pg_ctl.exe"
     )
+    $PgCtlCandidates += Get-ChildItem "C:\Program Files\PostgreSQL" -Directory -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "bin\pg_ctl.exe" }
 
-    for ($i = 0; $i -lt 20; $i++) {
-        try {
-            $r = Invoke-WebRequest "http://127.0.0.1:3001/api/health" -UseBasicParsing -TimeoutSec 1
-            if ($r.StatusCode -eq 200) { break }
-        } catch {}
-        Start-Sleep -Milliseconds 500
+    $PgCtl = $PgCtlCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $PgData = "C:\PGSQL\pgdata"
+    if ($PgCtl -and (Test-Path (Join-Path $PgData "PG_VERSION"))) {
+        & $PgCtl -D $PgData -l "C:\PGSQL\postgresql.log" start | Out-Null
+        Start-Sleep -Seconds 3
     }
 }
 
-# 3) Ouvrir le viewer éditeur comme avant
+$ApiOk = $false
+try {
+    $r = Invoke-WebRequest "http://127.0.0.1:3001/api/health" -UseBasicParsing -TimeoutSec 2
+    if ($r.StatusCode -eq 200) { $ApiOk = $true }
+}
+catch {}
+
+if (-not $ApiOk) {
+    Start-Process cmd.exe -WindowStyle Minimized -ArgumentList @(
+        "/k", "cd /d `"$API`" && `"$Npm`" start"
+    )
+
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Seconds 1
+        try {
+            $r = Invoke-WebRequest "http://127.0.0.1:3001/api/health" -UseBasicParsing -TimeoutSec 2
+            if ($r.StatusCode -eq 200) { $ApiOk = $true; break }
+        }
+        catch {}
+    }
+}
+
+if (-not $ApiOk) { throw "MAGO API did not start on port 3001." }
 Start-Process "http://localhost:3001/"

@@ -21,3 +21,14 @@ SAUVEGARDE_*/
 
 .client_public_url
 DOUBLONS_A_VERIFIER.csv
+
+# MAGO Viewer - local/private runtime data
+**/.env
+**/.env.backup_*
+**/node_modules/
+MAGO_Viewer_CLIENT_BDD_ACCES/api/mago-enrichment-api/storage/
+MAGO_Viewer_CLIENT_BDD_ACCES/api/mago-enrichment-api/.client_public_url
+MAGO_Viewer_CLIENT_BDD_ACCES/SAUVEGARDES_BDD/
+_PATCH_BACKUP_*/
+*.dump
+*.log

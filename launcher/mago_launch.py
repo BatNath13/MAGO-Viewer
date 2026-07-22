@@ -16,8 +16,8 @@ from tkinter import ttk
 CONFIG = {
     "VIEWER_DIR": r"C:\MAGO_Viewer\MAGO Viewer",
     "API_DIR": r"C:\MAGO_Viewer\MAGO Viewer\api\mago-enrichment-api",
-    "PG_BIN": r"D:\PGSQL\pgsql\bin",
-    "PG_DATA": r"D:\PGSQL\pgdata",
+    "PG_BIN": r"C:\PGSQL\pgsql\bin",
+    "PG_DATA": r"C:\PGSQL\pgdata",
     "API_PORT": 3001,
     "PG_PORT": 5432,
 }

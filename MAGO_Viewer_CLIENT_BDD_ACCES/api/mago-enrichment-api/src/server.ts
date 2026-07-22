@@ -138,17 +138,71 @@ function extractClassLabel(classKey: string): number | null {
   return m[1] ? -Number(m[1]) : Number(m[2]);
 }
 
+function humanizeClassName(classKey: string, label: number): string {
+  const decoded = decodeURIComponent(classKey ?? '').trim();
+  let slug = decoded
+    .replace(/^class_(?:m\d+|\d+)(?:_|$)/i, '')
+    .replace(/_inst_\d+.*$/i, '')
+    .replace(/^class_-?\d+_?/i, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const names: Record<string, string> = {
+    wall: 'Mur', walls: 'Murs', mur: 'Mur',
+    ceiling: 'Plafond', plafond: 'Plafond',
+    floor: 'Sol', ground: 'Sol / terrain', sol: 'Sol', terrain: 'Terrain',
+    door: 'Porte', porte: 'Porte', window: 'FenÃªtre', fenetre: 'FenÃªtre',
+    vegetation: 'VÃ©gÃ©tation', vegetation_: 'VÃ©gÃ©tation',
+    vehicle: 'VÃ©hicule', vehicles: 'VÃ©hicules', vehicule: 'VÃ©hicule',
+    chair: 'Chaise', chaise: 'Chaise', table: 'Table', desk: 'Bureau',
+    furniture: 'Mobilier', mobilier: 'Mobilier',
+    electrical: 'Ã‰lectricitÃ©', electric: 'Ã‰lectricitÃ©',
+    hvac: 'CVC', facade: 'FaÃ§ade', roof: 'Toiture', toiture: 'Toiture',
+    building: 'BÃ¢timent', batiment: 'BÃ¢timent', noise: 'Bruit', bruit: 'Bruit',
+  };
+
+  if (!slug) return `Classe ${label}`;
+  if (names[slug]) return names[slug];
+  return slug.charAt(0).toUpperCase() + slug.slice(1);
+}
+
+function canonicalClassKey(classKey: string, label: number): string {
+  const decoded = decodeURIComponent(classKey ?? '').trim();
+  const withoutInstance = decoded.replace(/_inst_\d+.*$/i, '');
+  if (/^class_(?:m\d+|\d+)(?:_|$)/i.test(withoutInstance)) return withoutInstance;
+  const prefix = label < 0 ? `class_m${Math.abs(label)}` : `class_${String(label).padStart(3, '0')}`;
+  return `${prefix}_class_${label}`;
+}
+
 async function resolveClass(classKey: string): Promise<any | null> {
+  const decoded = decodeURIComponent(classKey ?? '').trim();
+  if (!decoded) return null;
+
   const exact = await one(
     'SELECT id, class_key, label, display_name, family, mode FROM mago_class WHERE lower(class_key) = lower($1)',
-    [classKey]
+    [decoded]
   );
   if (exact) return exact;
-  const label = extractClassLabel(classKey);
+
+  const label = extractClassLabel(decoded);
   if (label == null) return null;
-  return one(
+
+  const byLabel = await one(
     'SELECT id, class_key, label, display_name, family, mode FROM mago_class WHERE label = $1',
     [label]
+  );
+  if (byLabel) return byLabel;
+
+  const canonical = canonicalClassKey(decoded, label);
+  const displayName = humanizeClassName(canonical, label);
+
+  return one(
+    `INSERT INTO mago_class (class_key, label, display_name, family, mode)
+     VALUES ($1, $2, $3, 'Autre', 'mixte')
+     ON CONFLICT (label) DO UPDATE SET label = EXCLUDED.label
+     RETURNING id, class_key, label, display_name, family, mode`,
+    [canonical, label, displayName]
   );
 }
 

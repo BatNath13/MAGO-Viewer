@@ -8,7 +8,7 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "admin": "tsx src/admin.ts",
-    "migrate": "psql \"$DATABASE_URL\" -f sql/001_client_access.sql"
+    "migrate": "psql \"$DATABASE_URL\" -f sql/000_mago_schema.sql"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
