@@ -86,5 +86,11 @@ The `README_*.md` and `README_PATCH_*.txt` files document each feature (client v
 
 MIT — see [`LICENSE`](LICENSE). Free to use, including commercially.
 
+### Commercial use
+
+The MIT License permits commercial use. If you use MAGO in a commercial context,
+the authors kindly ask that you notify Quarta at **contact@quarta.fr**.
+This is a courtesy request, not a condition of the licence.
+
 ---
 *Tools originally developed at Quarta, a French land-surveying company.*

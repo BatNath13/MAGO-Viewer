@@ -115,5 +115,12 @@ fonctionnalité (vue client, navigation, alignement des splats, tunnel public…
 
 MIT — voir [`LICENSE`](LICENSE). Utilisation libre, y compris commerciale.
 
+### Usage commercial
+
+La licence MIT autorise l'usage commercial. Si vous utilisez MAGO dans un cadre
+commercial, merci de bien vouloir en informer Quarta à l'adresse
+**contact@quarta.fr**. Il s'agit d'une demande de courtoisie, et non d'une
+condition de la licence.
+
 ---
 *Outils développés à l'origine chez Quarta, société de géomètres-experts.*
