@@ -11,6 +11,15 @@ MAGO Viewer displays 3D scenes in the browser combining multi-LOD meshes (tiled 
 
 Built with Babylon.js, Vite and TypeScript on the browser side, and a Fastify + PostgreSQL API on the server side. French/English interface selector.
 
+Tools developed by Nathan Bataillard as part of an end-of-studies project (TFE)
+at Quarta, a French land-surveying company.
+
+## Commercial use
+
+This software is released under the MIT License, which permits commercial use.
+If you use MAGO in a commercial context, please notify Quarta at
+**contact@quarta.fr**. This is a courtesy request, not a condition of the licence.
+
 ## Features
 
 - Display of multi-LOD GLB meshes and Gaussian splats
@@ -86,11 +95,13 @@ The `README_*.md` and `README_PATCH_*.txt` files document each feature (client v
 
 MIT — see [`LICENSE`](LICENSE). Free to use, including commercially.
 
-### Commercial use
-
-The MIT License permits commercial use. If you use MAGO in a commercial context,
-the authors kindly ask that you notify Quarta at **contact@quarta.fr**.
-This is a courtesy request, not a condition of the licence.
-
 ---
-*Tools originally developed at Quarta, a French land-surveying company.*
+Tools developed by Nathan Bataillard as part of an end-of-studies project (TFE)
+at Quarta, a French land-surveying company.
+
+## Commercial use
+
+This software is released under the MIT License, which permits commercial use.
+If you use MAGO in a commercial context, please notify Quarta at
+**contact@quarta.fr**. This is a courtesy request, not a condition of the licence.
+
